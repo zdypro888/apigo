@@ -1,4 +1,4 @@
-package apigo
+package main
 
 import (
 	"fmt"
@@ -190,4 +190,19 @@ func (g *GRPC) Proto3() string {
 	}
 	builder.WriteString("}")
 	return builder.String()
+}
+
+// GenerateProtoMessageDef 根据函数定义动态生成protobuf message定义
+func (g *GRPC) GenerateProto(typ reflect.Type) (string, error) {
+	if typ.Kind() != reflect.Ptr {
+		panic("type must be a pointer")
+	}
+	g.service = typ.Elem().Name()
+	for i := 0; i < typ.NumMethod(); i++ {
+		method := typ.Method(i)
+		if method.PkgPath != "" {
+			continue
+		}
+		g.marshalMethod(method)
+	}
 }

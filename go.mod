@@ -8,7 +8,7 @@ require (
 )
 
 require (
+	github.com/iancoleman/strcase v0.2.0
 	golang.org/x/crypto v0.5.0 // indirect
-	golang.org/x/exp v0.0.0-20230131160201-f062dba9d201
 	golang.org/x/sys v0.4.0 // indirect
 )
