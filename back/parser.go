@@ -1,4 +1,4 @@
-package main
+package apigo
 
 import (
 	"errors"
@@ -532,7 +532,7 @@ func (f *Field) CopyFromOrig(parent string) (string, error) {
 	return writer.String(), nil
 }
 
-type Method struct {
+type Methodold struct {
 	Name string
 	Objs []*Field
 	Args []*Field
@@ -550,7 +550,7 @@ type File struct {
 	Name    string
 	Pkg     string
 	File    *ast.File
-	Methods []*Method
+	Methods []*Methodold
 }
 
 func (file *File) ConvertType(typ ast.Expr) (*Type, error) {
@@ -608,10 +608,10 @@ func (file *File) ConvertType(typ ast.Expr) (*Type, error) {
 	return tval, nil
 }
 
-func (file *File) parseFunc(fdecl *ast.FuncDecl) (*Method, error) {
+func (file *File) parseFunc(fdecl *ast.FuncDecl) (*Methodold, error) {
 	for _, doc := range fdecl.Doc.List {
 		if strings.Contains(doc.Text, "@api") {
-			method := &Method{Name: fdecl.Name.Name}
+			method := &Methodold{Name: fdecl.Name.Name}
 			if fdecl.Recv != nil {
 				for _, recv := range fdecl.Recv.List {
 					rt, err := file.ConvertType(recv.Type)
