@@ -396,12 +396,12 @@ func (api *API) ProtoType(typ reflect.Type) (string, []string, error) {
 	}
 }
 
-func (api *API) FromProto(goname string, gonew bool, protoname string, typ reflect.Type) string {
+func (api *API) Proto2Go(goname string, gonew bool, protoname string, typ reflect.Type) string {
 	var builder strings.Builder
 	switch typ.Kind() {
 	case reflect.Ptr:
 		npname := "m" + GoCamelCase(goname)
-		builder.WriteString(api.FromProto(npname, true, protoname, typ.Elem()))
+		builder.WriteString(api.Proto2Go(npname, true, protoname, typ.Elem()))
 		builder.WriteString("\n")
 		builder.WriteString(goname)
 		builder.WriteString(" ")
@@ -437,7 +437,7 @@ func (api *API) FromProto(goname string, gonew bool, protoname string, typ refle
 			builder.WriteString("for i, v := range ")
 			builder.WriteString(protoname)
 			builder.WriteString(" {\n")
-			builder.WriteString(api.FromProto("item", true, "v", typElem))
+			builder.WriteString(api.Proto2Go("item", true, "v", typElem))
 			builder.WriteString("\n")
 			builder.WriteString(goname)
 			builder.WriteString("[i] = item\n")
@@ -503,7 +503,7 @@ func (api *API) FromProto(goname string, gonew bool, protoname string, typ refle
 				if field.Type.Kind() == reflect.Func {
 					continue
 				}
-				builder.WriteString(api.FromProto(goname+"."+field.Name, false, protoname+"."+GoCamelCase(field.Name), field.Type))
+				builder.WriteString(api.Proto2Go(goname+"."+field.Name, false, protoname+"."+GoCamelCase(field.Name), field.Type))
 				builder.WriteString("\n")
 			}
 		}
@@ -522,7 +522,132 @@ func (api *API) FromProto(goname string, gonew bool, protoname string, typ refle
 	return builder.String()
 }
 
-// GenerateProtoMessageDef 根据函数定义动态生成protobuf message定义
+func (api *API) Go2Proto(goname string, gonew bool, protoname string, typ reflect.Type) string {
+	var builder strings.Builder
+	switch typ.Kind() {
+	case reflect.Ptr:
+		npname := "m" + GoCamelCase(goname)
+		builder.WriteString(api.Proto2Go(npname, true, protoname, typ.Elem()))
+		builder.WriteString("\n")
+		builder.WriteString(goname)
+		builder.WriteString(" ")
+		if gonew {
+			builder.WriteString(":")
+		}
+		builder.WriteString("= &")
+		builder.WriteString(npname)
+	case reflect.Slice, reflect.Array:
+		typElem := typ.Elem()
+		if typElem.Kind() == reflect.Uint8 {
+			builder.WriteString(goname)
+			builder.WriteString(" ")
+			if gonew {
+				builder.WriteString(":")
+			}
+			builder.WriteString("= ")
+			builder.WriteString("[]byte(")
+			builder.WriteString(protoname)
+			builder.WriteString(")")
+		} else {
+			builder.WriteString(goname)
+			builder.WriteString(" ")
+			if gonew {
+				builder.WriteString(":")
+			}
+			builder.WriteString("= ")
+			builder.WriteString("make([]")
+			builder.WriteString(typElem.String())
+			builder.WriteString(", len(")
+			builder.WriteString(protoname)
+			builder.WriteString("))\n")
+			builder.WriteString("for i, v := range ")
+			builder.WriteString(protoname)
+			builder.WriteString(" {\n")
+			builder.WriteString(api.Proto2Go("item", true, "v", typElem))
+			builder.WriteString("\n")
+			builder.WriteString(goname)
+			builder.WriteString("[i] = item\n")
+			builder.WriteString("}")
+		}
+	case reflect.Interface:
+		if typ.Implements(errorInterface) {
+			builder.WriteString(goname)
+			builder.WriteString(" ")
+			if gonew {
+				builder.WriteString(":")
+			}
+			builder.WriteString("= ")
+			builder.WriteString("errors.New(")
+			builder.WriteString(protoname)
+			builder.WriteString(")")
+		} else {
+			builder.WriteString(goname)
+			builder.WriteString(" ")
+			if gonew {
+				builder.WriteString(":")
+			}
+			builder.WriteString("= ")
+			builder.WriteString(protoname)
+		}
+	case reflect.Struct:
+		typename := typ.String()
+		switch typename {
+		case "error":
+			builder.WriteString(goname)
+			builder.WriteString(" ")
+			if gonew {
+				builder.WriteString(":")
+			}
+			builder.WriteString("= ")
+			builder.WriteString("errors.New(")
+			builder.WriteString(protoname)
+			builder.WriteString(")")
+		case "time.Time":
+			builder.WriteString(goname)
+			builder.WriteString(" ")
+			if gonew {
+				builder.WriteString(":")
+			}
+			builder.WriteString("= ")
+			builder.WriteString("time.Unix(")
+			builder.WriteString(protoname)
+			builder.WriteString(", 0)")
+		default:
+			builder.WriteString(goname)
+			builder.WriteString(" ")
+			if gonew {
+				builder.WriteString(":")
+			}
+			builder.WriteString("= ")
+			builder.WriteString(typ.String())
+			builder.WriteString("{}\n")
+			for i := 0; i < typ.NumField(); i++ {
+				field := typ.Field(i)
+				if field.PkgPath != "" {
+					continue
+				}
+				if field.Type.Kind() == reflect.Func {
+					continue
+				}
+				builder.WriteString(api.Proto2Go(goname+"."+field.Name, false, protoname+"."+GoCamelCase(field.Name), field.Type))
+				builder.WriteString("\n")
+			}
+		}
+	default:
+		builder.WriteString(goname)
+		builder.WriteString(" ")
+		if gonew {
+			builder.WriteString(":")
+		}
+		builder.WriteString("= ")
+		builder.WriteString(typ.String())
+		builder.WriteString("(")
+		builder.WriteString(protoname)
+		builder.WriteString(")")
+	}
+	return builder.String()
+}
+
 func (api *API) WriteProto() error {
 	var builder strings.Builder
 	builder.WriteString("syntax = \"proto3\";\n")
@@ -651,7 +776,7 @@ func (api *API) WriteServer() error {
 		builder.WriteString(method.Name)
 		builder.WriteString("Response, error) {\n")
 		for _, param := range method.Params {
-			builder.WriteString(api.FromProto(param.Name, true, "request."+GoCamelCase(param.Name), param.Type))
+			builder.WriteString(api.Proto2Go(param.Name, true, "request."+GoCamelCase(param.Name), param.Type))
 			builder.WriteString("\n")
 		}
 		for i, result := range method.Result {
