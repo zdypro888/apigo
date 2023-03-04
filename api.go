@@ -55,6 +55,13 @@ func (t *Type) ProtoFile() string {
 	return filepath.Join(t.api.protoPath, t.Pkg, t.Name+".proto")
 }
 
+func (t *Type) PkgPath() string {
+	if t.api.protoMod != "" && t.Pkg != t.api.Package {
+		return t.api.protoMod + "/" + t.Pkg
+	}
+	return ""
+}
+
 func (t *Type) WriteProto() error {
 	var builder strings.Builder
 	builder.WriteString("syntax = \"proto3\";\n")
@@ -142,9 +149,10 @@ type API struct {
 	serverPath string
 	clientPath string
 
-	ModBase string
-	Package string
-	Name    string
+	ModBase  string
+	Package  string
+	Typename string
+	Name     string
 
 	protoMod  string
 	serverMod string
@@ -185,6 +193,7 @@ func (api *API) serviceInfo() error {
 		serviceElemType = serviceElemType.Elem()
 	}
 	api.Package = serviceElemType.PkgPath()
+	api.Typename = serviceElemType.String()
 	api.Name = serviceElemType.Name()
 	for i := 0; i < api.serviceType.NumMethod(); i++ {
 		methodType := api.serviceType.Method(i)
@@ -235,13 +244,56 @@ func (api *API) serviceMethod(method reflect.Method, value reflect.Value) error 
 	}
 	for i := 0; i < methodType.NumOut(); i++ {
 		resultType := methodType.Out(i)
-		resultName, err := ((*FieldList)(funcType.Results)).NameIndex(i)
-		if err != nil {
-			return err
+		var resultName string
+		if resultType == errorInterface {
+			resultName = "err"
+		} else {
+			if resultName, err = ((*FieldList)(funcType.Results)).NameIndex(i); err != nil {
+				return err
+			}
 		}
 		me.Result = append(me.Result, &Field{Name: resultName, Type: resultType})
 	}
 	api.methods = append(api.methods, me)
+	return nil
+}
+
+func (api *API) typeImport(typ reflect.Type) string {
+	switch typ.Kind() {
+	case reflect.Ptr:
+		return api.typeImport(typ.Elem())
+	case reflect.Slice:
+		return api.typeImport(typ.Elem())
+	case reflect.Map:
+		return api.typeImport(typ.Elem())
+	case reflect.Struct:
+		return typ.PkgPath()
+	}
+	return ""
+}
+
+func (api *API) typeImports(typ reflect.Type) []string {
+	switch typ.Kind() {
+	case reflect.Ptr:
+		return api.typeImports(typ.Elem())
+	case reflect.Slice:
+		return api.typeImports(typ.Elem())
+	case reflect.Map:
+		return api.typeImports(typ.Elem())
+	case reflect.Struct:
+		imports := []string{typ.PkgPath()}
+		for i := 0; i < typ.NumField(); i++ {
+			field := typ.Field(i)
+			if field.PkgPath != "" {
+				continue
+			}
+			fimports := api.typeImports(field.Type)
+			if len(fimports) > 0 {
+				imports = append(imports, fimports...)
+			}
+		}
+		return imports
+	}
 	return nil
 }
 
@@ -266,41 +318,24 @@ func (api *API) modtidy() error {
 	return cmd.Run()
 }
 
-// ImportType 转换结构体
-func (api *API) ImportType(typ reflect.Type) ([]*Type, error) {
+func (api *API) NilString(typ reflect.Type) string {
 	switch typ.Kind() {
 	case reflect.Ptr:
-		return api.ImportType(typ.Elem())
-	case reflect.Slice, reflect.Array:
-		typElem := typ.Elem()
-		return api.ImportType(typElem)
-	case reflect.Struct:
-		ctype, err := api.ImportStruct(typ)
-		if err != nil {
-			return nil, err
-		}
-		if ctype != nil {
-			return []*Type{ctype}, nil
-		}
+		return "nil"
+	case reflect.Slice:
+		return "nil"
 	case reflect.Map:
-		keyTyp, err := api.ImportType(typ.Key())
-		if err != nil {
-			return nil, err
-		}
-		valueTyp, err := api.ImportType(typ.Elem())
-		if err != nil {
-			return nil, err
-		}
-		var types []*Type
-		if keyTyp != nil {
-			types = append(types, keyTyp...)
-		}
-		if valueTyp != nil {
-			types = append(types, valueTyp...)
-		}
-		return types, nil
+		return "nil"
+	case reflect.Struct:
+		return typ.String() + "{}"
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64:
+		return "0"
+	case reflect.Bool:
+		return "false"
+	case reflect.String:
+		return `""`
 	}
-	return nil, nil
+	return ""
 }
 
 func (api *API) ImportStruct(typ reflect.Type) (*Type, error) {
@@ -321,6 +356,55 @@ func (api *API) ImportStruct(typ reflect.Type) (*Type, error) {
 		st.Pkg = api.Package
 	}
 	return st, nil
+}
+
+// ImportType 转换结构体
+func (api *API) ImportTypes(typ reflect.Type, withField bool) ([]*Type, error) {
+	switch typ.Kind() {
+	case reflect.Ptr:
+		return api.ImportTypes(typ.Elem(), withField)
+	case reflect.Slice, reflect.Array:
+		typElem := typ.Elem()
+		return api.ImportTypes(typElem, withField)
+	case reflect.Struct:
+		ctype, err := api.ImportStruct(typ)
+		if err != nil {
+			return nil, err
+		}
+		if ctype != nil {
+			types := []*Type{ctype}
+			if withField {
+				for i := 0; i < typ.NumField(); i++ {
+					field := typ.Field(i)
+					fieldTyps, err := api.ImportTypes(field.Type, withField)
+					if err != nil {
+						return nil, err
+					} else if fieldTyps != nil {
+						types = append(types, fieldTyps...)
+					}
+				}
+			}
+			return types, nil
+		}
+	case reflect.Map:
+		keyTyp, err := api.ImportTypes(typ.Key(), withField)
+		if err != nil {
+			return nil, err
+		}
+		valueTyp, err := api.ImportTypes(typ.Elem(), withField)
+		if err != nil {
+			return nil, err
+		}
+		var types []*Type
+		if keyTyp != nil {
+			types = append(types, keyTyp...)
+		}
+		if valueTyp != nil {
+			types = append(types, valueTyp...)
+		}
+		return types, nil
+	}
+	return nil, nil
 }
 
 // ProtoType 获取proto3类型名称
@@ -367,7 +451,7 @@ func (api *API) ProtoType(typ reflect.Type) (string, []string, error) {
 		case "time.Time":
 			return "int64", nil, nil
 		}
-		ctypes, err := api.ImportType(typ)
+		ctypes, err := api.ImportTypes(typ, false)
 		if err != nil {
 			return "", nil, err
 		}
@@ -419,7 +503,8 @@ func (api *API) Proto2Go(goname string, gonew bool, protoname string, typ reflec
 				builder.WriteString(":")
 			}
 			builder.WriteString("= ")
-			builder.WriteString("[]byte(")
+			builder.WriteString(typ.String())
+			builder.WriteString("(")
 			builder.WriteString(protoname)
 			builder.WriteString(")")
 		} else {
@@ -527,99 +612,136 @@ func (api *API) Go2Proto(goname string, gonew bool, protoname string, typ reflec
 	switch typ.Kind() {
 	case reflect.Ptr:
 		npname := "m" + GoCamelCase(goname)
-		builder.WriteString(api.Proto2Go(npname, true, protoname, typ.Elem()))
-		builder.WriteString("\n")
+		builder.WriteString(npname)
+		builder.WriteString(" := *")
 		builder.WriteString(goname)
+		builder.WriteString("\n")
+		builder.WriteString(api.Go2Proto(npname, true, protoname, typ.Elem()))
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
+		builder.WriteString(protoname)
 		builder.WriteString(" ")
 		if gonew {
 			builder.WriteString(":")
 		}
-		builder.WriteString("= &")
-		builder.WriteString(npname)
+		builder.WriteString("= int32(")
+		builder.WriteString(goname)
+		builder.WriteString(")")
+	case reflect.Int64:
+		builder.WriteString(protoname)
+		builder.WriteString(" ")
+		if gonew {
+			builder.WriteString(":")
+		}
+		builder.WriteString("= int64(")
+		builder.WriteString(goname)
+		builder.WriteString(")")
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32:
+		builder.WriteString(protoname)
+		builder.WriteString(" ")
+		if gonew {
+			builder.WriteString(":")
+		}
+		builder.WriteString("= uint32(")
+		builder.WriteString(goname)
+		builder.WriteString(")")
+	case reflect.Uint64:
+		builder.WriteString(protoname)
+		builder.WriteString(" ")
+		if gonew {
+			builder.WriteString(":")
+		}
+		builder.WriteString("= uint64(")
+		builder.WriteString(goname)
+		builder.WriteString(")")
 	case reflect.Slice, reflect.Array:
 		typElem := typ.Elem()
 		if typElem.Kind() == reflect.Uint8 {
-			builder.WriteString(goname)
+			builder.WriteString(protoname)
 			builder.WriteString(" ")
 			if gonew {
 				builder.WriteString(":")
 			}
 			builder.WriteString("= ")
-			builder.WriteString("[]byte(")
-			builder.WriteString(protoname)
+			builder.WriteString("[]byte")
+			builder.WriteString("(")
+			builder.WriteString(goname)
 			builder.WriteString(")")
 		} else {
-			builder.WriteString(goname)
+			builder.WriteString(protoname)
 			builder.WriteString(" ")
 			if gonew {
 				builder.WriteString(":")
 			}
 			builder.WriteString("= ")
+			testring := typElem.String()
+			if testring[0] == '*' {
+				testring = "*pb" + testring[1:]
+			} else {
+				testring = "pb" + testring
+			}
 			builder.WriteString("make([]")
-			builder.WriteString(typElem.String())
+			builder.WriteString(testring)
 			builder.WriteString(", len(")
-			builder.WriteString(protoname)
+			builder.WriteString(goname)
 			builder.WriteString("))\n")
 			builder.WriteString("for i, v := range ")
-			builder.WriteString(protoname)
-			builder.WriteString(" {\n")
-			builder.WriteString(api.Proto2Go("item", true, "v", typElem))
-			builder.WriteString("\n")
 			builder.WriteString(goname)
+			builder.WriteString(" {\n")
+			builder.WriteString(api.Go2Proto("v", true, "item", typElem))
+			builder.WriteString("\n")
+			builder.WriteString(protoname)
 			builder.WriteString("[i] = item\n")
 			builder.WriteString("}")
 		}
 	case reflect.Interface:
 		if typ.Implements(errorInterface) {
-			builder.WriteString(goname)
+			builder.WriteString(protoname)
 			builder.WriteString(" ")
 			if gonew {
 				builder.WriteString(":")
 			}
 			builder.WriteString("= ")
-			builder.WriteString("errors.New(")
-			builder.WriteString(protoname)
-			builder.WriteString(")")
+			builder.WriteString(goname)
+			builder.WriteString(".Error()")
 		} else {
-			builder.WriteString(goname)
+			builder.WriteString(protoname)
 			builder.WriteString(" ")
 			if gonew {
 				builder.WriteString(":")
 			}
 			builder.WriteString("= ")
-			builder.WriteString(protoname)
+			builder.WriteString(goname)
 		}
 	case reflect.Struct:
 		typename := typ.String()
 		switch typename {
 		case "error":
-			builder.WriteString(goname)
+			builder.WriteString(protoname)
 			builder.WriteString(" ")
 			if gonew {
 				builder.WriteString(":")
 			}
 			builder.WriteString("= ")
-			builder.WriteString("errors.New(")
-			builder.WriteString(protoname)
-			builder.WriteString(")")
+			builder.WriteString(goname)
+			builder.WriteString(".Error()")
 		case "time.Time":
-			builder.WriteString(goname)
-			builder.WriteString(" ")
-			if gonew {
-				builder.WriteString(":")
-			}
-			builder.WriteString("= ")
-			builder.WriteString("time.Unix(")
 			builder.WriteString(protoname)
-			builder.WriteString(", 0)")
-		default:
-			builder.WriteString(goname)
 			builder.WriteString(" ")
 			if gonew {
 				builder.WriteString(":")
 			}
 			builder.WriteString("= ")
-			builder.WriteString(typ.String())
+			builder.WriteString(goname)
+			builder.WriteString(".Unix()")
+		default:
+			builder.WriteString(protoname)
+			builder.WriteString(" ")
+			if gonew {
+				builder.WriteString(":")
+			}
+			builder.WriteString("= &")
+			builder.WriteString("pb")
+			builder.WriteString(typename)
 			builder.WriteString("{}\n")
 			for i := 0; i < typ.NumField(); i++ {
 				field := typ.Field(i)
@@ -629,12 +751,12 @@ func (api *API) Go2Proto(goname string, gonew bool, protoname string, typ reflec
 				if field.Type.Kind() == reflect.Func {
 					continue
 				}
-				builder.WriteString(api.Proto2Go(goname+"."+field.Name, false, protoname+"."+GoCamelCase(field.Name), field.Type))
+				builder.WriteString(api.Go2Proto(goname+"."+field.Name, false, protoname+"."+GoCamelCase(field.Name), field.Type))
 				builder.WriteString("\n")
 			}
 		}
 	default:
-		builder.WriteString(goname)
+		builder.WriteString(protoname)
 		builder.WriteString(" ")
 		if gonew {
 			builder.WriteString(":")
@@ -642,7 +764,7 @@ func (api *API) Go2Proto(goname string, gonew bool, protoname string, typ reflec
 		builder.WriteString("= ")
 		builder.WriteString(typ.String())
 		builder.WriteString("(")
-		builder.WriteString(protoname)
+		builder.WriteString(goname)
 		builder.WriteString(")")
 	}
 	return builder.String()
@@ -679,15 +801,17 @@ func (api *API) WriteProto() error {
 		fbuilder.WriteString(method.Name)
 		fbuilder.WriteString("Response {\n")
 		for i, result := range method.Result {
-			resultTypeName, resultImports, err := api.ProtoType(result.Type)
-			if err != nil {
-				if err == errEmptyField {
-					continue
+			if result.Type != errorInterface {
+				resultTypeName, resultImports, err := api.ProtoType(result.Type)
+				if err != nil {
+					if err == errEmptyField {
+						continue
+					}
+					return err
 				}
-				return err
+				imports = append(imports, resultImports...)
+				fbuilder.WriteString(fmt.Sprintf("\t%s %s = %d;\n", resultTypeName, result.Name, i+1))
 			}
-			imports = append(imports, resultImports...)
-			fbuilder.WriteString(fmt.Sprintf("\t%s %s = %d;\n", resultTypeName, result.Name, i+1))
 		}
 		fbuilder.WriteString("}\n")
 	}
@@ -725,20 +849,42 @@ func (api *API) WriteProto() error {
 	if err != nil {
 		return err
 	}
-	var modbuilder strings.Builder
-	modbuilder.WriteString("module ")
-	modbuilder.WriteString(api.protoMod)
-	modbuilder.WriteString("\n")
-	modbuilder.WriteString("go 1.19\n")
-	modfile := filepath.Join(api.protoPath, "go.mod")
-	if err = os.WriteFile(modfile, []byte(modbuilder.String()), 0644); err != nil {
-		return err
-	}
+	// var modbuilder strings.Builder
+	// modbuilder.WriteString("module ")
+	// modbuilder.WriteString(api.protoMod)
+	// modbuilder.WriteString("\n")
+	// modbuilder.WriteString("go 1.19\n")
+	// modfile := filepath.Join(api.protoPath, "go.mod")
+	// if err = os.WriteFile(modfile, []byte(modbuilder.String()), 0644); err != nil {
+	// 	return err
+	// }
 	if err = api.protoc(protorel); err != nil {
 		return err
 	}
-	if err = api.modtidy(); err != nil {
+	// if err = api.modtidy(); err != nil {
+	// 	return err
+	// }
+	return nil
+}
+
+func (api *API) WriteImports(builder *strings.Builder, typ reflect.Type) error {
+	ptyps, err := api.ImportTypes(typ, true)
+	if err != nil {
 		return err
+	}
+	for _, ptyp := range ptyps {
+		if pkgpath := ptyp.PkgPath(); pkgpath != "" {
+			builder.WriteString("\tpb")
+			builder.WriteString(ptyp.Pkg)
+			builder.WriteString(" \"")
+			builder.WriteString(pkgpath)
+			builder.WriteString("\"\n")
+		}
+	}
+	for _, pkgpath := range api.typeImports(typ) {
+		builder.WriteString("\t\"")
+		builder.WriteString(pkgpath)
+		builder.WriteString("\"\n")
 	}
 	return nil
 }
@@ -754,11 +900,26 @@ func (api *API) WriteServer() error {
 	builder.WriteString("\t\"")
 	builder.WriteString(api.protoMod)
 	builder.WriteString("\"\n")
+	for _, method := range api.methods {
+		for _, param := range method.Params {
+			if err := api.WriteImports(&builder, param.Type); err != nil {
+				return err
+			}
+		}
+		for _, result := range method.Result {
+			if err := api.WriteImports(&builder, result.Type); err != nil {
+				return err
+			}
+		}
+	}
 	builder.WriteString(")\n")
 
 	builder.WriteString("type ")
 	builder.WriteString(api.Name)
 	builder.WriteString(" struct {\n")
+	builder.WriteString("\t service ")
+	builder.WriteString(api.Typename)
+	builder.WriteString("\n")
 	builder.WriteString("}\n")
 
 	for _, method := range api.methods {
@@ -787,6 +948,7 @@ func (api *API) WriteServer() error {
 			}
 		}
 		builder.WriteString(" := ")
+		builder.WriteString("s.service.")
 		builder.WriteString(method.Name)
 		builder.WriteString("(")
 		for i, param := range method.Params {
@@ -796,37 +958,50 @@ func (api *API) WriteServer() error {
 			}
 		}
 		builder.WriteString(")\n")
+		if method.Result[len(method.Result)-1].Type == errorInterface {
+			builder.WriteString("\tif err != nil {\n")
+			builder.WriteString("\t\treturn nil, grpc.Errorf(codes.Internal, err.Error())\n")
+			builder.WriteString("\t}\n")
+		}
+		for _, result := range method.Result {
+			if result.Type != errorInterface {
+				builder.WriteString(api.Go2Proto(result.Name, true, "pb"+result.Name, result.Type))
+				builder.WriteString("\n")
+			}
+		}
 		builder.WriteString("\treturn &")
 		builder.WriteString(api.Package)
 		builder.WriteString(".")
 		builder.WriteString(method.Name)
 		builder.WriteString("Response{\n")
 		for _, result := range method.Result {
-			builder.WriteString("\t\t")
-			builder.WriteString(GoCamelCase(result.Name))
-			builder.WriteString(": ")
-			builder.WriteString(result.Name)
-			builder.WriteString(",\n")
+			if result.Type != errorInterface {
+				builder.WriteString("\t\t")
+				builder.WriteString(GoCamelCase(result.Name))
+				builder.WriteString(": pb")
+				builder.WriteString(result.Name)
+				builder.WriteString(",\n")
+			}
 		}
 		builder.WriteString("\t}, nil\n")
 		builder.WriteString("}\n")
 	}
-	serverfile := filepath.Join(api.serverPath, api.Name+".go")
+	serverfile := filepath.Join(api.serverPath, "server.go")
 	if err := os.MkdirAll(filepath.Dir(serverfile), 0755); err != nil {
 		return err
 	}
 	if err := os.WriteFile(serverfile, []byte(builder.String()), 0644); err != nil {
 		return err
 	}
-	modbuilder := strings.Builder{}
-	modbuilder.WriteString("module ")
-	modbuilder.WriteString(api.serverMod)
-	modbuilder.WriteString("\n")
-	modbuilder.WriteString("go 1.19\n")
-	modfile := filepath.Join(api.serverPath, "go.mod")
-	if err := os.WriteFile(modfile, []byte(modbuilder.String()), 0644); err != nil {
-		return err
-	}
+	// modbuilder := strings.Builder{}
+	// modbuilder.WriteString("module ")
+	// modbuilder.WriteString(api.serverMod)
+	// modbuilder.WriteString("\n")
+	// modbuilder.WriteString("go 1.19\n")
+	// modfile := filepath.Join(api.serverPath, "go.mod")
+	// if err := os.WriteFile(modfile, []byte(modbuilder.String()), 0644); err != nil {
+	// 	return err
+	// }
 	return nil
 }
 
@@ -841,39 +1016,140 @@ func (api *API) WriteClient() error {
 	builder.WriteString("\t\"")
 	builder.WriteString(api.protoMod)
 	builder.WriteString("\"\n")
+	for _, method := range api.methods {
+		for _, param := range method.Params {
+			if err := api.WriteImports(&builder, param.Type); err != nil {
+				return err
+			}
+		}
+		for _, result := range method.Result {
+			if err := api.WriteImports(&builder, result.Type); err != nil {
+				return err
+			}
+		}
+	}
 	builder.WriteString(")\n")
+
+	builder.WriteString("type ")
+	builder.WriteString(api.Name)
+	builder.WriteString(" struct {\n")
+	builder.WriteString("\t client ")
+	builder.WriteString(api.Package)
+	builder.WriteString(".")
+	builder.WriteString(api.Name)
+	builder.WriteString("Client\n")
+	builder.WriteString("}\n")
+
+	builder.WriteString("func New")
+	builder.WriteString(api.Name)
+	builder.WriteString("(conn *grpc.ClientConn) *")
+	builder.WriteString(api.Name)
+	builder.WriteString(" {\n")
+	builder.WriteString("\treturn &")
+	builder.WriteString(api.Name)
+	builder.WriteString("{\n")
+	builder.WriteString("\t\tclient: ")
+	builder.WriteString(api.Package)
+	builder.WriteString(".New")
+	builder.WriteString(api.Name)
+	builder.WriteString("Client(conn),\n")
+	builder.WriteString("\t}\n")
+	builder.WriteString("}\n")
 
 	for _, method := range api.methods {
 		builder.WriteString("func ")
+		builder.WriteString("(c *")
+		builder.WriteString(api.Name)
+		builder.WriteString(") ")
 		builder.WriteString(method.Name)
-		builder.WriteString("(ctx context.Context, request *")
+		builder.WriteString("(")
+		for i, param := range method.Params {
+			builder.WriteString(param.Name)
+			builder.WriteString(" ")
+			builder.WriteString(param.Type.String())
+			if i < len(method.Params)-1 {
+				builder.WriteString(", ")
+			}
+		}
+		builder.WriteString(") (")
+		for i, result := range method.Result {
+			builder.WriteString(result.Type.String())
+			if i < len(method.Result)-1 {
+				builder.WriteString(", ")
+			}
+		}
+		builder.WriteString(") {\n")
+		for _, param := range method.Params {
+			builder.WriteString(api.Go2Proto(param.Name, true, "pb"+GoCamelCase(param.Name), param.Type))
+			builder.WriteString("\n")
+		}
+		builder.WriteString("\tresponse, err := c.client.")
+		builder.WriteString(method.Name)
+		builder.WriteString("(context.Background(), &")
 		builder.WriteString(api.Package)
 		builder.WriteString(".")
 		builder.WriteString(method.Name)
-		builder.WriteString("Request) (*")
-		builder.WriteString(api.Package)
-		builder.WriteString(".")
-		builder.WriteString(method.Name)
-		builder.WriteString("Response, error) {\n")
-		builder.WriteString("\treturn nil, nil\n")
+		builder.WriteString("Request{\n")
+		for _, param := range method.Params {
+			builder.WriteString("\t\t")
+			builder.WriteString(GoCamelCase(param.Name))
+			builder.WriteString(": pb")
+			builder.WriteString(GoCamelCase(param.Name))
+			builder.WriteString(",\n")
+		}
+		builder.WriteString("\t})\n")
+		builder.WriteString("\tif err != nil {\n")
+		builder.WriteString("\t\treturn ")
+		for i, ret := range method.Result {
+			if i == len(method.Result)-1 && ret.Type.Implements(errorInterface) {
+				builder.WriteString("err")
+			} else if nilstr := api.NilString(ret.Type); nilstr != "" {
+				builder.WriteString(nilstr)
+			} else {
+				return fmt.Errorf("unsupported return type %s", ret.Type)
+			}
+			if i < len(method.Result)-1 {
+				builder.WriteString(", ")
+			}
+		}
+		builder.WriteString("\n")
+		builder.WriteString("\t}\n")
+		for _, result := range method.Result {
+			if result.Type != errorInterface {
+				builder.WriteString(api.Proto2Go(result.Name, true, "response."+GoCamelCase(result.Name), result.Type))
+				builder.WriteString("\n")
+			}
+		}
+		builder.WriteString("\treturn ")
+		for i, result := range method.Result {
+			if result.Type != errorInterface {
+				builder.WriteString(result.Name)
+			} else {
+				builder.WriteString("nil")
+			}
+			if i < len(method.Result)-1 {
+				builder.WriteString(", ")
+			}
+		}
+		builder.WriteString("\n")
 		builder.WriteString("}\n")
 	}
-	clientfile := filepath.Join(api.clientPath, api.Name+".go")
+	clientfile := filepath.Join(api.clientPath, "client.go")
 	if err := os.MkdirAll(filepath.Dir(clientfile), 0755); err != nil {
 		return err
 	}
 	if err := os.WriteFile(clientfile, []byte(builder.String()), 0644); err != nil {
 		return err
 	}
-	modbuilder := strings.Builder{}
-	modbuilder.WriteString("module ")
-	modbuilder.WriteString(api.clientMod)
-	modbuilder.WriteString("\n")
-	modbuilder.WriteString("go 1.19\n")
-	modfile := filepath.Join(api.clientPath, "go.mod")
-	if err := os.WriteFile(modfile, []byte(modbuilder.String()), 0644); err != nil {
-		return err
-	}
+	// modbuilder := strings.Builder{}
+	// modbuilder.WriteString("module ")
+	// modbuilder.WriteString(api.clientMod)
+	// modbuilder.WriteString("\n")
+	// modbuilder.WriteString("go 1.19\n")
+	// modfile := filepath.Join(api.clientPath, "go.mod")
+	// if err := os.WriteFile(modfile, []byte(modbuilder.String()), 0644); err != nil {
+	// 	return err
+	// }
 	return nil
 }
 
