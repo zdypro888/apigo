@@ -154,6 +154,9 @@ type API struct {
 	Typename string
 	Name     string
 
+	HandleProto2Go func(goname string, gonew bool, protoname string, typ reflect.Type) string
+	HandleGo2Proto func(goname string, gonew bool, protoname string, typ reflect.Type) string
+
 	protoMod  string
 	serverMod string
 	clientMod string
@@ -324,6 +327,8 @@ func (api *API) NilString(typ reflect.Type) string {
 		return "nil"
 	case reflect.Slice:
 		return "nil"
+	case reflect.Array:
+		return typ.String() + "{}"
 	case reflect.Map:
 		return "nil"
 	case reflect.Struct:
@@ -481,6 +486,11 @@ func (api *API) ProtoType(typ reflect.Type) (string, []string, error) {
 }
 
 func (api *API) Proto2Go(goname string, gonew bool, protoname string, typ reflect.Type) string {
+	if api.HandleProto2Go != nil {
+		if s := api.HandleProto2Go(goname, gonew, protoname, typ); s != "" {
+			return s
+		}
+	}
 	var builder strings.Builder
 	switch typ.Kind() {
 	case reflect.Ptr:
@@ -608,15 +618,24 @@ func (api *API) Proto2Go(goname string, gonew bool, protoname string, typ reflec
 }
 
 func (api *API) Go2Proto(goname string, gonew bool, protoname string, typ reflect.Type) string {
+	if api.HandleProto2Go != nil {
+		if s := api.HandleGo2Proto(goname, gonew, protoname, typ); s != "" {
+			return s
+		}
+	}
 	var builder strings.Builder
 	switch typ.Kind() {
 	case reflect.Ptr:
+		typElem := typ.Elem()
+		if typElem.Kind() == reflect.Struct {
+			return api.Go2Proto(goname, true, protoname, typElem)
+		}
 		npname := "m" + GoCamelCase(goname)
 		builder.WriteString(npname)
 		builder.WriteString(" := *")
 		builder.WriteString(goname)
 		builder.WriteString("\n")
-		builder.WriteString(api.Go2Proto(npname, true, protoname, typ.Elem()))
+		builder.WriteString(api.Go2Proto(npname, true, protoname, typElem))
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
 		builder.WriteString(protoname)
 		builder.WriteString(" ")
@@ -960,7 +979,7 @@ func (api *API) WriteServer() error {
 		builder.WriteString(")\n")
 		if method.Result[len(method.Result)-1].Type == errorInterface {
 			builder.WriteString("\tif err != nil {\n")
-			builder.WriteString("\t\treturn nil, grpc.Errorf(codes.Internal, err.Error())\n")
+			builder.WriteString("\t\treturn nil, status.Errorf(codes.Internal, err.Error())\n")
 			builder.WriteString("\t}\n")
 		}
 		for _, result := range method.Result {
