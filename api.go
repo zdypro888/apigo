@@ -844,10 +844,10 @@ func (api *API) WriteProto() error {
 		builder.WriteString("\";\n")
 	}
 	builder.WriteString(fbuilder.String())
+	builder.WriteString("service ")
+	builder.WriteString(api.Name)
+	builder.WriteString(" {\n")
 	for _, method := range api.methods {
-		builder.WriteString("service ")
-		builder.WriteString(api.Name)
-		builder.WriteString(" {\n")
 		builder.WriteString("\trpc ")
 		builder.WriteString(method.Name)
 		builder.WriteString(" (")
@@ -855,8 +855,8 @@ func (api *API) WriteProto() error {
 		builder.WriteString("Request) returns (")
 		builder.WriteString(method.Name)
 		builder.WriteString("Response);\n")
-		builder.WriteString("}\n")
 	}
+	builder.WriteString("}\n")
 	protofile := filepath.Join(api.protoPath, api.Package+".proto")
 	if err := os.MkdirAll(filepath.Dir(protofile), 0755); err != nil {
 		return err
@@ -916,6 +916,7 @@ func (api *API) WriteServer() error {
 
 	builder.WriteString("import (\n")
 	builder.WriteString("\t\"context\"\n")
+	builder.WriteString("\tgstatus \"google.golang.org/grpc/status\"\n")
 	builder.WriteString("\t\"")
 	builder.WriteString(api.protoMod)
 	builder.WriteString("\"\n")
@@ -979,7 +980,7 @@ func (api *API) WriteServer() error {
 		builder.WriteString(")\n")
 		if method.Result[len(method.Result)-1].Type == errorInterface {
 			builder.WriteString("\tif err != nil {\n")
-			builder.WriteString("\t\treturn nil, status.Errorf(codes.Internal, err.Error())\n")
+			builder.WriteString("\t\treturn nil, gstatus.Errorf(codes.Internal, err.Error())\n")
 			builder.WriteString("\t}\n")
 		}
 		for _, result := range method.Result {
