@@ -13,9 +13,9 @@ import (
 )
 
 type Response struct {
-	Code  int    `json:"code"`
-	Error string `json:"error,omitempty"`
-	Data  any    `json:"data,omitempty"`
+	Code  int    `json:"code" bson:"code"`
+	Error string `json:"error,omitempty" bson:"error,omitempty"`
+	Data  any    `json:"data,omitempty" bson:"data,omitempty"`
 }
 
 type ResponseBSON Response
@@ -30,23 +30,10 @@ func (result *ResponseBSON) UnmarshalJSON(data []byte) error {
 	return bson.UnmarshalExtJSON(data, false, result)
 }
 
-func ResponseError(ctx iris.Context, code int, err error) {
-	ctx.JSON(&ResponseBSON{Code: code, Error: err.Error()})
-}
-func ResponseData(ctx iris.Context, data any) {
-	ctx.JSON(&ResponseBSON{Code: 0, Data: data})
-}
-
-func ResponseErrorBSON(ctx iris.Context, code int, err error) {
-	ctx.JSON(&ResponseBSON{Code: code, Error: err.Error()})
-}
-func ResponseDataBSON(ctx iris.Context, data any) {
-	ctx.JSON(&ResponseBSON{Code: 0, Data: data})
-}
-
 type Server struct {
-	app   *iris.Application
-	store *filestore.FileStore
+	app      *iris.Application
+	store    *filestore.FileStore
+	WithBSON bool
 }
 
 func NewServer() *Server {
@@ -122,4 +109,27 @@ func (s *Server) Start(cert, key, addr string) {
 			return err
 		}
 	}), iris.WithOptimizations)
+}
+
+func (s *Server) ResponseError(ctx iris.Context, code int, err error) {
+	if s.WithBSON {
+		ctx.JSON(&ResponseBSON{Code: code, Error: err.Error()})
+	} else {
+		ctx.JSON(&Response{Code: code, Error: err.Error()})
+	}
+}
+func (s *Server) ResponseData(ctx iris.Context, data any) {
+	if s.WithBSON {
+		ctx.JSON(&ResponseBSON{Code: 0, Data: data})
+	} else {
+		ctx.JSON(&Response{Code: 0, Data: data})
+	}
+}
+
+func (s *Server) HandleNotify(path string, handler func(ctx iris.Context)) {
+	s.app.Get(path, handler)
+}
+
+func (s *Server) HandleRequest(path string, handler func(ctx iris.Context)) {
+	s.app.Post(path, handler)
 }
