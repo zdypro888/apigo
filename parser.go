@@ -23,6 +23,7 @@ type NameType struct {
 }
 
 type FuncDecl struct {
+	Decl    *ast.FuncDecl
 	Name    string
 	Recv    NameType
 	Params  []*NameType
@@ -72,6 +73,8 @@ type Parser struct {
 	fileset  *token.FileSet
 	Services map[string]*Service
 	Pkgname  string
+
+	copySpecs []ast.Spec
 }
 
 func NewParser() *Parser {
@@ -96,6 +99,17 @@ func (p *Parser) ParseDir(path string) error {
 					if value.Doc != nil {
 						if err := p.parseFuncDecl(value); err != nil {
 							return err
+						}
+					}
+				case *ast.GenDecl:
+					if value.Doc != nil {
+						switch value.Tok {
+						case token.TYPE:
+							for _, comment := range value.Doc.List {
+								if strings.Contains(comment.Text, "@api") {
+									p.copySpecs = append(p.copySpecs, value.Specs...)
+								}
+							}
 						}
 					}
 				}
@@ -174,8 +188,8 @@ func (p *Parser) parseField(field *ast.Field) ([]*NameType, error) {
 }
 
 func (p *Parser) parseFuncDecl(fdecl *ast.FuncDecl) error {
-	for _, doc := range fdecl.Doc.List {
-		if strings.Contains(doc.Text, "@api") {
+	for _, comment := range fdecl.Doc.List {
+		if strings.Contains(comment.Text, "@api") {
 			if fdecl.Recv == nil {
 				return nil
 			}
@@ -189,7 +203,7 @@ func (p *Parser) parseFuncDecl(fdecl *ast.FuncDecl) error {
 			if len(names) != 1 {
 				return fmt.Errorf("not support multi recv(names)")
 			}
-			method := &FuncDecl{Name: fdecl.Name.Name, LastResultIndex: -1}
+			method := &FuncDecl{Decl: fdecl, Name: fdecl.Name.Name, LastResultIndex: -1}
 			method.Recv = *names[0]
 			if fdecl.Type.Params != nil {
 				for _, param := range fdecl.Type.Params.List {
@@ -226,9 +240,22 @@ func (p *Parser) parseFuncDecl(fdecl *ast.FuncDecl) error {
 	return nil
 }
 
-func (p *Parser) WriteClient(pkgname, path string) error {
+func (p *Parser) WriteClient(pkgname, hpath, path string) error {
 	builder := &strings.Builder{}
+	// buf := new(bytes.Buffer)
+	// ffile := &ast.File{
+	// 	Name:  ast.NewIdent(pkgname),
+	// 	Decls: []ast.Decl{&ast.GenDecl{Tok: token.TYPE, Specs: p.copySpecs}},
+	// }
+	// if err := format.Node(buf, p.fileset, ffile); err != nil {
+	// 	return err
+	// }
+	// log.Println(buf.String())
 	builder.WriteString("package " + pkgname + "\n\n")
+	builder.WriteString("import (\n")
+	builder.WriteString("\t\"github.com/zdypro888/apigo\"\n")
+	builder.WriteString(")\n\n")
+
 	for name, service := range p.Services {
 		clientName := name + "Client"
 		// Generate struct type with service name and client instance
@@ -251,6 +278,12 @@ func (p *Parser) WriteClient(pkgname, path string) error {
 			}
 			if len(retStrings) == 0 || retStrings[len(retStrings)-1] != "error" {
 				retStrings = append(retStrings, "error")
+			}
+			// Generate function doc
+			for _, comment := range method.Decl.Doc.List {
+				if !strings.Contains(comment.Text, "@api") {
+					builder.WriteString(fmt.Sprintf("%s\n", comment.Text))
+				}
 			}
 			// Generate function signature
 			builder.WriteString(fmt.Sprintf("func (c *%s) %s(%s) (%s) {\n", clientName, method.Name, strings.Join(paramStrings, ", "), strings.Join(retStrings, ", ")))
@@ -292,11 +325,11 @@ func (p *Parser) WriteClient(pkgname, path string) error {
 			// Generate request code
 			if len(method.Params) == 0 {
 				if !method.HasNormalResult {
-					builder.WriteString(fmt.Sprintf("\tif err := apigo.Notify(c.client, \"%s/%s\", http.MethodGet, nil); err != nil {\n", name, method.Name))
+					builder.WriteString(fmt.Sprintf("\tif err := apigo.Notify(c.client, \"%s/%s/%s\", http.MethodGet, nil); err != nil {\n", hpath, name, method.Name))
 					builder.WriteString("\t\treturn err\n\t}\n")
 					builder.WriteString("\treturn nil\n")
 				} else {
-					builder.WriteString(fmt.Sprintf("\tresp, err := apigo.Request[Response](c.client, \"%s/%s\", http.MethodGet, nil)\n", name, method.Name))
+					builder.WriteString(fmt.Sprintf("\tresp, err := apigo.Request[Response](c.client, \"%s/%s/%s\", http.MethodPost, nil)\n", hpath, name, method.Name))
 					builder.WriteString("\tif err != nil {\n")
 					writeErrResult(builder)
 					builder.WriteString("\t}\n")
@@ -304,11 +337,11 @@ func (p *Parser) WriteClient(pkgname, path string) error {
 				}
 			} else {
 				if !method.HasNormalResult {
-					builder.WriteString(fmt.Sprintf("\tif err := apigo.Notify(c.client, \"%s/%s\", http.MethodPost, req); err != nil {\n", name, method.Name))
+					builder.WriteString(fmt.Sprintf("\tif err := apigo.Notify(c.client, \"%s/%s/%s\", http.MethodGet, req); err != nil {\n", hpath, name, method.Name))
 					builder.WriteString("\t\treturn err\n\t}\n")
 					builder.WriteString("\treturn nil\n")
 				} else {
-					builder.WriteString(fmt.Sprintf("\tresp, err := apigo.Request[Response](c.client, \"%s/%s\", http.MethodPost, &req)\n", name, method.Name))
+					builder.WriteString(fmt.Sprintf("\tresp, err := apigo.Request[Response](c.client, \"%s/%s/%s\", http.MethodPost, &req)\n", hpath, name, method.Name))
 					builder.WriteString("\tif err != nil {\n")
 					writeErrResult(builder)
 					builder.WriteString("\t}\n")
@@ -327,12 +360,13 @@ func (p *Parser) WriteClient(pkgname, path string) error {
 	return nil
 }
 
-func (p *Parser) WriteServer(pkgname, path string) error {
+func (p *Parser) WriteServer(pkgname, hpath, path string) error {
 	builder := &strings.Builder{}
 	builder.WriteString("package " + pkgname)
 	builder.WriteString("\n\nimport (\n")
 	builder.WriteString("\t\"net/http\"\n")
 	builder.WriteString("\t\"github.com/kataras/iris/v12\"\n")
+	builder.WriteString("\t\"github.com/zdypro888/apigo\"\n")
 	builder.WriteString(")\n\n")
 
 	for name, service := range p.Services {
@@ -354,29 +388,29 @@ func (p *Parser) WriteServer(pkgname, path string) error {
 		builder.WriteString(fmt.Sprintf("func (s *%s) init() {\n", serviceName))
 		for _, method := range service.Methods {
 			if method.HasNormalResult {
-				builder.WriteString(fmt.Sprintf("\ts.server.HandleRequest(\"%s/%s\", s.%s)\n", name, method.Name, method.Name))
+				builder.WriteString(fmt.Sprintf("\ts.server.HandleRequest(\"%s/%s/%s\", s.handle%s)\n", hpath, name, method.Name, method.Name))
 			} else {
-				builder.WriteString(fmt.Sprintf("\ts.server.HandleNotify(\"%s/%s\", s.%s)\n", name, method.Name, method.Name))
+				builder.WriteString(fmt.Sprintf("\ts.server.HandleNotify(\"%s/%s/%s\", s.handle%s)\n", hpath, name, method.Name, method.Name))
 			}
 		}
 		builder.WriteString("}\n\n")
 		for _, method := range service.Methods {
-			builder.WriteString(fmt.Sprintf("func (s *%s) %s(ctx iris.Context) {\n", serviceName, method.Name))
+			builder.WriteString(fmt.Sprintf("func (s *%s) handle%s(ctx iris.Context) {\n", serviceName, method.Name))
 			method.WriteRR(builder)
 			if len(method.Params) > 0 {
 				// Generate request object
-				builder.WriteString("var req apigo.BSONData[Request]\n")
-				builder.WriteString("if err := ctx.ReadJSON(&req); err != nil {\n")
+				builder.WriteString("req, err := apigo.ReadMessage[Request](s.server, ctx)\n")
+				builder.WriteString("if err != nil {\n")
 				builder.WriteString("\ts.server.ResponseError(ctx, 500, err)\n")
 				builder.WriteString("\treturn\n")
 				builder.WriteString("}\n")
 			}
 			var paramStrings []string
 			for _, param := range method.Params {
-				paramStrings = append(paramStrings, fmt.Sprintf("req.Data.%s", GoCamelCase(param.Name)))
+				paramStrings = append(paramStrings, fmt.Sprintf("req.%s", GoCamelCase(param.Name)))
 			}
 			if method.HasNormalResult {
-				if method.LastResultError {
+				if method.LastResultError && len(method.Params) == 0 {
 					builder.WriteString("var err error\n")
 				}
 				builder.WriteString("var resp Response\n")
@@ -391,7 +425,11 @@ func (p *Parser) WriteServer(pkgname, path string) error {
 				builder.WriteString(strings.Join(retStrings, ", "))
 				builder.WriteString(" = s.")
 			} else if method.LastResultError {
-				builder.WriteString("err := s.")
+				if len(method.Params) > 0 {
+					builder.WriteString("err = s.")
+				} else {
+					builder.WriteString("err := s.")
+				}
 			}
 			builder.WriteString(service.Name)
 			builder.WriteString(".")
@@ -417,6 +455,84 @@ func (p *Parser) WriteServer(pkgname, path string) error {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(path, "server.go"), []byte(builder.String()), 0644); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *Parser) WriteJavascript(path string) error {
+	builder := &strings.Builder{}
+	builder.WriteString("import { Client } from \"./client\";\n\n")
+	for name, service := range p.Services {
+		serviceName := name + "Client"
+		// Generate struct type with service name and client instance
+		builder.WriteString(fmt.Sprintf("export class %s extends Client {\n", serviceName))
+		builder.WriteString(fmt.Sprintf("\t%s: %s;\n", service.Name, name))
+		builder.WriteString(fmt.Sprintf("\tconstructor(url: string, %s: %s) {\n", service.Name, name))
+		builder.WriteString("\t\tsuper(url);\n")
+		builder.WriteString(fmt.Sprintf("\t\tthis.%s = %s;\n", service.Name, service.Name))
+		builder.WriteString("\t}\n")
+		for _, method := range service.Methods {
+			builder.WriteString(fmt.Sprintf("\thandle%s(data: any, callback: (err: any, result: any) => void) {\n", method.Name))
+			method.WriteRR(builder)
+			if len(method.Params) > 0 {
+				// Generate request object
+				builder.WriteString("var req = new Request();\n")
+				for _, param := range method.Params {
+					builder.WriteString(fmt.Sprintf("req.%s = data.%s;\n", GoCamelCase(param.Name), GoCamelCase(param.Name)))
+				}
+			}
+			var paramStrings []string
+			for _, param := range method.Params {
+				paramStrings = append(paramStrings, fmt.Sprintf("req.%s", GoCamelCase(param.Name)))
+			}
+			if method.HasNormalResult {
+				if method.LastResultError && len(method.Params) == 0 {
+					builder.WriteString("var err: any;\n")
+				}
+				builder.WriteString("var resp = new Response();\n")
+				var retStrings []string
+				for i, ret := range method.Results {
+					if i == method.LastResultIndex && ret.Type == "error" {
+						retStrings = append(retStrings, "err")
+					} else {
+						retStrings = append(retStrings, fmt.Sprintf("resp.%s", GoCamelCase(ret.Name)))
+					}
+				}
+				builder.WriteString(strings.Join(retStrings, ", "))
+				builder.WriteString(" = this.")
+			} else if method.LastResultError {
+				if len(method.Params) > 0 {
+					builder.WriteString("var err: any = this.")
+				} else {
+					builder.WriteString("var err: any = this.")
+				}
+			}
+			builder.WriteString(service.Name)
+			builder.WriteString(".")
+			builder.WriteString(method.Name)
+			builder.WriteString("(")
+			builder.WriteString(strings.Join(paramStrings, ", "))
+			builder.WriteString(");\n")
+			if method.LastResultError {
+				builder.WriteString("if (err) {\n")
+				builder.WriteString("\t\tcallback(err, null);\n")
+				builder.WriteString("\t\treturn;\n")
+				builder.WriteString("\t}\n")
+			}
+			if method.HasNormalResult {
+				builder.WriteString("\t\tcallback(null, resp);\n")
+			} else {
+				builder.WriteString("\t\tcallback(null, null);\n")
+			}
+			builder.WriteString("\t}\n\n")
+		}
+		builder.WriteString("}\n\n")
+	}
+	if err := os.MkdirAll(path, 0755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(path, "client.ts"), []byte(builder.String()), 0644); err != nil {
 		return err
 	}
 	return nil

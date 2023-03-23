@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/zdypro888/net"
 	"go.mongodb.org/mongo-driver/bson"
@@ -16,6 +17,16 @@ type Client struct {
 	WithBSON bool
 }
 
+func (c *Client) BuildURL(p string) string {
+	if strings.HasPrefix(p, "http://") || strings.HasPrefix(p, "https://") {
+		return p
+	}
+	if strings.HasPrefix(p, "/") {
+		return c.host + p
+	}
+	return c.host + "/" + p
+}
+
 func NewClient(host string) *Client {
 	client := &Client{
 		client: net.NewHTTP3(),
@@ -24,7 +35,7 @@ func NewClient(host string) *Client {
 	return client
 }
 
-func doRequest(c *Client, url string, method string, request any, response any) error {
+func doRequest(c *Client, path string, method string, request any, response any) error {
 	var err error
 	var data []byte
 	if request == nil {
@@ -41,7 +52,7 @@ func doRequest(c *Client, url string, method string, request any, response any) 
 		}
 	}
 	var res *net.Response
-	if res, err = c.client.RequestMethod(context.Background(), url, method, nil, data); err != nil {
+	if res, err = c.client.RequestMethod(context.Background(), c.BuildURL(path), method, nil, data); err != nil {
 		return err
 	}
 	if res.StatusCode != http.StatusOK {
@@ -62,24 +73,24 @@ func doRequest(c *Client, url string, method string, request any, response any) 
 	return nil
 }
 
-func Notify(c *Client, url string, method string, body any) error {
-	var result responseBase
-	if err := doRequest(c, url, method, body, &result); err != nil {
+func Notify(c *Client, path string, method string, body any) error {
+	var msg messageBase
+	if err := doRequest(c, path, method, body, &msg); err != nil {
 		return err
 	}
-	if result.Code != 0 {
-		return errors.New(result.Error)
+	if msg.Code != 0 {
+		return errors.New(msg.Error)
 	}
 	return nil
 }
 
-func Request[T any](c *Client, url string, method string, body any) (*T, error) {
-	var result response[*T]
-	if err := doRequest(c, url, method, body, &result); err != nil {
+func Request[T any](c *Client, path string, method string, body any) (*T, error) {
+	var msg message[*T]
+	if err := doRequest(c, path, method, body, &msg); err != nil {
 		return nil, err
 	}
-	if result.Code != 0 {
-		return nil, errors.New(result.Error)
+	if msg.Code != 0 {
+		return nil, errors.New(msg.Error)
 	}
-	return result.Data, nil
+	return msg.Data, nil
 }
