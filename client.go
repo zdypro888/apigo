@@ -29,8 +29,9 @@ func (c *Client) BuildURL(p string) string {
 
 func NewClient(host string) *Client {
 	client := &Client{
-		client: net.NewHTTP3(),
-		host:   host,
+		client:   net.NewHTTP3(),
+		host:     host,
+		WithBSON: true,
 	}
 	return client
 }

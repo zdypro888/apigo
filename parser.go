@@ -3,6 +3,7 @@ package apigo
 import (
 	"fmt"
 	"go/ast"
+	"go/format"
 	"go/parser"
 	"go/token"
 	"os"
@@ -329,7 +330,7 @@ func (p *Parser) WriteClient(pkgname, hpath, path string) error {
 					builder.WriteString("\t\treturn err\n\t}\n")
 					builder.WriteString("\treturn nil\n")
 				} else {
-					builder.WriteString(fmt.Sprintf("\tresp, err := apigo.Request[Response](c.client, \"%s/%s/%s\", http.MethodPost, nil)\n", hpath, name, method.Name))
+					builder.WriteString(fmt.Sprintf("\tresp, err := apigo.Request[Response](c.client, \"%s/%s/%s\", http.MethodGet, nil)\n", hpath, name, method.Name))
 					builder.WriteString("\tif err != nil {\n")
 					writeErrResult(builder)
 					builder.WriteString("\t}\n")
@@ -337,7 +338,7 @@ func (p *Parser) WriteClient(pkgname, hpath, path string) error {
 				}
 			} else {
 				if !method.HasNormalResult {
-					builder.WriteString(fmt.Sprintf("\tif err := apigo.Notify(c.client, \"%s/%s/%s\", http.MethodGet, req); err != nil {\n", hpath, name, method.Name))
+					builder.WriteString(fmt.Sprintf("\tif err := apigo.Notify(c.client, \"%s/%s/%s\", http.MethodPost, req); err != nil {\n", hpath, name, method.Name))
 					builder.WriteString("\t\treturn err\n\t}\n")
 					builder.WriteString("\treturn nil\n")
 				} else {
@@ -354,7 +355,11 @@ func (p *Parser) WriteClient(pkgname, hpath, path string) error {
 	if err := os.MkdirAll(path, 0755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(path, "client.go"), []byte(builder.String()), 0644); err != nil {
+	fsource, err := format.Source([]byte(builder.String()))
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(path, "client.go"), fsource, 0644); err != nil {
 		return err
 	}
 	return nil
@@ -387,15 +392,15 @@ func (p *Parser) WriteServer(pkgname, hpath, path string) error {
 
 		builder.WriteString(fmt.Sprintf("func (s *%s) init() {\n", serviceName))
 		for _, method := range service.Methods {
-			if method.HasNormalResult {
-				builder.WriteString(fmt.Sprintf("\ts.server.HandleRequest(\"%s/%s/%s\", s.handle%s)\n", hpath, name, method.Name, method.Name))
+			if len(method.Params) > 0 {
+				builder.WriteString(fmt.Sprintf("\ts.server.HandlePost(\"%s/%s/%s\", s.handle%s)\n", hpath, name, method.Name, method.Name))
 			} else {
-				builder.WriteString(fmt.Sprintf("\ts.server.HandleNotify(\"%s/%s/%s\", s.handle%s)\n", hpath, name, method.Name, method.Name))
+				builder.WriteString(fmt.Sprintf("\ts.server.HandleGet(\"%s/%s/%s\", s.handle%s)\n", hpath, name, method.Name, method.Name))
 			}
 		}
 		builder.WriteString("}\n\n")
 		for _, method := range service.Methods {
-			builder.WriteString(fmt.Sprintf("func (s *%s) handle%s(ctx iris.Context) {\n", serviceName, method.Name))
+			builder.WriteString(fmt.Sprintf("func (s *%s) handle%s(ctx *gin.Context) {\n", serviceName, method.Name))
 			method.WriteRR(builder)
 			if len(method.Params) > 0 {
 				// Generate request object
@@ -454,7 +459,11 @@ func (p *Parser) WriteServer(pkgname, hpath, path string) error {
 	if err := os.MkdirAll(path, 0755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(path, "server.go"), []byte(builder.String()), 0644); err != nil {
+	fsource, err := format.Source([]byte(builder.String()))
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(path, "server.go"), fsource, 0644); err != nil {
 		return err
 	}
 	return nil
