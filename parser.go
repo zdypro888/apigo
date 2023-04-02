@@ -139,7 +139,14 @@ func (p *Parser) exprToString(typ ast.Expr) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("[]%s", val), nil
+		var lenstr string
+		if value.Len != nil {
+			lenstr, err = p.exprToString(value.Len)
+			if err != nil {
+				return "", err
+			}
+		}
+		return fmt.Sprintf("[%s]%s", lenstr, val), nil
 	case *ast.MapType:
 		key, err := p.exprToString(value.Key)
 		if err != nil {
@@ -464,84 +471,6 @@ func (p *Parser) WriteServer(pkgname, hpath, path string) error {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(path, "server.go"), fsource, 0644); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (p *Parser) WriteJavascript(path string) error {
-	builder := &strings.Builder{}
-	builder.WriteString("import { Client } from \"./client\";\n\n")
-	for name, service := range p.Services {
-		serviceName := name + "Client"
-		// Generate struct type with service name and client instance
-		builder.WriteString(fmt.Sprintf("export class %s extends Client {\n", serviceName))
-		builder.WriteString(fmt.Sprintf("\t%s: %s;\n", service.Name, name))
-		builder.WriteString(fmt.Sprintf("\tconstructor(url: string, %s: %s) {\n", service.Name, name))
-		builder.WriteString("\t\tsuper(url);\n")
-		builder.WriteString(fmt.Sprintf("\t\tthis.%s = %s;\n", service.Name, service.Name))
-		builder.WriteString("\t}\n")
-		for _, method := range service.Methods {
-			builder.WriteString(fmt.Sprintf("\thandle%s(data: any, callback: (err: any, result: any) => void) {\n", method.Name))
-			method.WriteRR(builder)
-			if len(method.Params) > 0 {
-				// Generate request object
-				builder.WriteString("var req = new Request();\n")
-				for _, param := range method.Params {
-					builder.WriteString(fmt.Sprintf("req.%s = data.%s;\n", GoCamelCase(param.Name), GoCamelCase(param.Name)))
-				}
-			}
-			var paramStrings []string
-			for _, param := range method.Params {
-				paramStrings = append(paramStrings, fmt.Sprintf("req.%s", GoCamelCase(param.Name)))
-			}
-			if method.HasNormalResult {
-				if method.LastResultError && len(method.Params) == 0 {
-					builder.WriteString("var err: any;\n")
-				}
-				builder.WriteString("var resp = new Response();\n")
-				var retStrings []string
-				for i, ret := range method.Results {
-					if i == method.LastResultIndex && ret.Type == "error" {
-						retStrings = append(retStrings, "err")
-					} else {
-						retStrings = append(retStrings, fmt.Sprintf("resp.%s", GoCamelCase(ret.Name)))
-					}
-				}
-				builder.WriteString(strings.Join(retStrings, ", "))
-				builder.WriteString(" = this.")
-			} else if method.LastResultError {
-				if len(method.Params) > 0 {
-					builder.WriteString("var err: any = this.")
-				} else {
-					builder.WriteString("var err: any = this.")
-				}
-			}
-			builder.WriteString(service.Name)
-			builder.WriteString(".")
-			builder.WriteString(method.Name)
-			builder.WriteString("(")
-			builder.WriteString(strings.Join(paramStrings, ", "))
-			builder.WriteString(");\n")
-			if method.LastResultError {
-				builder.WriteString("if (err) {\n")
-				builder.WriteString("\t\tcallback(err, null);\n")
-				builder.WriteString("\t\treturn;\n")
-				builder.WriteString("\t}\n")
-			}
-			if method.HasNormalResult {
-				builder.WriteString("\t\tcallback(null, resp);\n")
-			} else {
-				builder.WriteString("\t\tcallback(null, null);\n")
-			}
-			builder.WriteString("\t}\n\n")
-		}
-		builder.WriteString("}\n\n")
-	}
-	if err := os.MkdirAll(path, 0755); err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(path, "client.ts"), []byte(builder.String()), 0644); err != nil {
 		return err
 	}
 	return nil
