@@ -248,6 +248,76 @@ func (p *Parser) parseFuncDecl(fdecl *ast.FuncDecl) error {
 	return nil
 }
 
+func (p *Parser) WriteJS(hpath, path string) error {
+	builder := &strings.Builder{}
+	for name, service := range p.Services {
+		clientName := name + "Client"
+		builder.WriteString(fmt.Sprintf("var %s = {}\n", clientName))
+		builder.WriteString(fmt.Sprintf("%s.fetch = async function(path, method, request) {\n", clientName))
+		builder.WriteString("\tvar resp = await fetch(\"https://avpo.com\" + path, {\n")
+		builder.WriteString("\t\tmethod: method,\n")
+		builder.WriteString("\t\tbody: request ? JSON.stringify(request) : null,\n")
+		builder.WriteString("\t\theaders: {\n")
+		builder.WriteString("\t\t\t\"Content-Type\": \"application/json\"\n")
+		builder.WriteString("\t\t}\n")
+		builder.WriteString("\t})\n")
+		builder.WriteString("\tif (resp.status != 200) {\n")
+		builder.WriteString("\t\tthrow new Error(\"request failed\")\n")
+		builder.WriteString("\t}\n")
+		builder.WriteString("\tvar msg = await resp.json()\n")
+		builder.WriteString("\tif (msg.code != 0) {\n")
+		builder.WriteString("\t\tthrow new Error(msg.error)\n")
+		builder.WriteString("\t}\n")
+		builder.WriteString("\treturn msg.data\n")
+		builder.WriteString("}\n\n")
+
+		for _, method := range service.Methods {
+			var paramStrings []string
+			for _, param := range method.Params {
+				paramStrings = append(paramStrings, param.Name)
+			}
+			builder.WriteString(fmt.Sprintf("/** %s\n", method.Name))
+			for _, comment := range method.Decl.Doc.List {
+				if !strings.Contains(comment.Text, "@api") {
+					builder.WriteString(fmt.Sprintf(" * %s\n", strings.TrimPrefix(comment.Text, "//")))
+				}
+			}
+			for _, param := range method.Params {
+				builder.WriteString(fmt.Sprintf(" * @param {%s} %s\n", param.Type, param.Name))
+			}
+			for _, ret := range method.Results {
+				builder.WriteString(fmt.Sprintf(" * @returns {%s}\n", ret.Type))
+			}
+			builder.WriteString(" */\n")
+			if len(paramStrings) == 0 {
+				builder.WriteString(fmt.Sprintf("%s.%s = async function() {\n", clientName, method.Name))
+			} else {
+				builder.WriteString(fmt.Sprintf("%s.%s = async function(%s) {\n", clientName, method.Name, strings.Join(paramStrings, ", ")))
+			}
+			if len(method.Params) > 0 {
+				builder.WriteString("var req = {\n")
+				for _, param := range method.Params {
+					builder.WriteString(fmt.Sprintf("\t%s: %s,\n", GoCamelCase(param.Name), param.Name))
+				}
+				builder.WriteString("}\n")
+			}
+			if len(method.Params) == 0 {
+				builder.WriteString(fmt.Sprintf("\treturn await %s.fetch(\"%s/%s/%s\", \"GET\", null)\n", clientName, hpath, name, method.Name))
+			} else {
+				builder.WriteString(fmt.Sprintf("\treturn await %s.fetch(\"%s/%s/%s\", \"POST\", req)\n", clientName, hpath, name, method.Name))
+			}
+			builder.WriteString("}\n\n")
+		}
+	}
+	if err := os.MkdirAll(path, 0755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(path, "client.js"), []byte(builder.String()), 0644); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (p *Parser) WriteClient(pkgname, hpath, path string) error {
 	builder := &strings.Builder{}
 	// buf := new(bytes.Buffer)
