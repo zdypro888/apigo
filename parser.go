@@ -237,7 +237,8 @@ func (p *Parser) parseFuncDecl(fdecl *ast.FuncDecl) error {
 			method.Init()
 			serviceName := strings.TrimPrefix(method.Recv.Type, "*")
 			if service, ok := p.Services[serviceName]; !ok {
-				service = &Service{Name: method.Recv.Name, Methods: []*FuncDecl{method}}
+				//Name: method.Recv.Name
+				service = &Service{Name: "Impl", Methods: []*FuncDecl{method}}
 				p.Services[serviceName] = service
 			} else {
 				service.Methods = append(service.Methods, method)
@@ -452,7 +453,7 @@ func (p *Parser) WriteServer(pkgname, hpath, path string) error {
 	builder.WriteString(")\n\n")
 
 	for name, service := range p.Services {
-		serviceName := name + "Server"
+		serviceName := name + "Api"
 		// Generate struct type with service name and client instance
 		builder.WriteString(fmt.Sprintf("type %s struct {\n", serviceName))
 		builder.WriteString("\tserver *apigo.Server\n")

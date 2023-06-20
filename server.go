@@ -20,6 +20,8 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 )
 
+type Context = gin.Context
+
 type messageBaseBSON messageBase
 
 // MarshalJSON 格式化
