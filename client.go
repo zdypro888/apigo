@@ -53,7 +53,7 @@ func doRequest(c *Client, path string, method string, request any, response any)
 		}
 	}
 	var res *net.Response
-	if res, err = c.client.RequestMethod(context.Background(), c.BuildURL(path), method, nil, data); err != nil {
+	if res, err = c.client.RequestMethod(context.Background(), c.BuildURL(path), method, nil, net.NewReader(data)); err != nil {
 		return err
 	}
 	if res.StatusCode != http.StatusOK {
