@@ -6,7 +6,7 @@ require (
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/quic-go/quic-go v0.33.0
 	github.com/tus/tusd v1.10.1
-	github.com/zdypro888/net v1.60.0
+	github.com/zdypro888/net v1.60.1
 	github.com/zdypro888/utils v1.60.0
 	go.mongodb.org/mongo-driver v1.11.3
 	golang.org/x/mod v0.9.0
@@ -37,7 +37,6 @@ require (
 	github.com/quic-go/qpack v0.4.0 // indirect
 	github.com/quic-go/qtls-go1-19 v0.3.0 // indirect
 	github.com/quic-go/qtls-go1-20 v0.2.0 // indirect
-	github.com/stretchr/testify v1.8.2 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.9 // indirect
 	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
