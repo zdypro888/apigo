@@ -10,7 +10,6 @@ require (
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/quic-go/quic-go v0.36.0
 	github.com/tus/tusd v1.11.0
-	github.com/zdypro888/idatabase v0.0.0-20230701154406-ff862620078d
 	github.com/zdypro888/net v0.0.0-20230701144948-9c8de6fa5a3c
 	github.com/zdypro888/utils v0.0.0-20230701143214-cb20eea39e0e
 	go.mongodb.org/mongo-driver v1.12.0
@@ -49,7 +48,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.0.8 // indirect
 	github.com/quic-go/qpack v0.4.0 // indirect
 	github.com/quic-go/qtls-go1-19 v0.3.2 // indirect
-	github.com/quic-go/qtls-go1-20 v0.3.0 // indirect
+	github.com/quic-go/qtls-go1-20 v0.2.2 // indirect
 	github.com/satori/go.uuid v1.2.0 // indirect
 	github.com/tealeg/xlsx v1.0.5 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
@@ -58,11 +57,8 @@ require (
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20201027041543-1326539a0a0a // indirect
-	github.com/zdypro888/appleid v0.0.0-20230701150654-1dda3b8723fc // indirect
 	github.com/zdypro888/go-plist v0.0.0-20230701023818-1de7c0434684 // indirect
-	github.com/zdypro888/icloud v0.0.0-20230701150823-00db8ddf7949 // indirect
 	github.com/zdypro888/icrypto v0.0.0-20230701143023-6dc34fa947aa // indirect
-	github.com/zdypro888/idevice v0.0.0-20230701150250-e693d8650cee // indirect
 	golang.org/x/arch v0.3.0 // indirect
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df // indirect
 	golang.org/x/net v0.11.0 // indirect
