@@ -10,7 +10,7 @@ require (
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/quic-go/quic-go v0.36.0
 	github.com/tus/tusd v1.11.0
-	github.com/zdypro888/idatabase v0.0.0-20230701150940-8c00de9b0cdb
+	github.com/zdypro888/idatabase v0.0.0-20230701154406-ff862620078d
 	github.com/zdypro888/net v0.0.0-20230701144948-9c8de6fa5a3c
 	github.com/zdypro888/utils v0.0.0-20230701143214-cb20eea39e0e
 	go.mongodb.org/mongo-driver v1.12.0
