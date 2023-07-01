@@ -6,13 +6,16 @@ require (
 	github.com/gin-contrib/cors v1.4.0
 	github.com/gin-gonic/autotls v0.0.5
 	github.com/gin-gonic/gin v1.9.1
+	github.com/iancoleman/strcase v0.2.0
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/quic-go/quic-go v0.36.0
 	github.com/tus/tusd v1.11.0
 	github.com/zdypro888/idatabase v0.0.0-20230701150940-8c00de9b0cdb
 	github.com/zdypro888/net v0.0.0-20230701144948-9c8de6fa5a3c
+	github.com/zdypro888/utils v0.0.0-20230701143214-cb20eea39e0e
 	go.mongodb.org/mongo-driver v1.12.0
 	golang.org/x/crypto v0.10.0
+	golang.org/x/mod v0.11.0
 )
 
 require (
@@ -60,10 +63,8 @@ require (
 	github.com/zdypro888/icloud v0.0.0-20230701150823-00db8ddf7949 // indirect
 	github.com/zdypro888/icrypto v0.0.0-20230701143023-6dc34fa947aa // indirect
 	github.com/zdypro888/idevice v0.0.0-20230701150250-e693d8650cee // indirect
-	github.com/zdypro888/utils v0.0.0-20230701143214-cb20eea39e0e // indirect
 	golang.org/x/arch v0.3.0 // indirect
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df // indirect
-	golang.org/x/mod v0.11.0 // indirect
 	golang.org/x/net v0.11.0 // indirect
 	golang.org/x/sync v0.3.0 // indirect
 	golang.org/x/sys v0.9.0 // indirect
