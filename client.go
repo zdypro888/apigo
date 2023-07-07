@@ -29,9 +29,13 @@ func (c *Client) BuildURL(p string) string {
 
 func NewClient(host string) *Client {
 	client := &Client{
-		client:   net.NewHTTP3(),
 		host:     host,
 		WithBSON: true,
+	}
+	if strings.HasPrefix(host, "http://") {
+		client.client = net.NewHTTP(nil)
+	} else {
+		client.client = net.NewHTTP3()
 	}
 	return client
 }
