@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"path"
 
+	brotli "github.com/anargu/gin-brotli"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/autotls"
 	"github.com/gin-gonic/gin"
@@ -59,6 +60,8 @@ func NewServer() *Server {
 	config := cors.DefaultConfig()
 	config.AllowAllOrigins = true
 	app.Use(cors.New(config))
+	// app.Use(gzip.Gzip(gzip.DefaultCompression))
+	app.Use(brotli.Brotli(brotli.DefaultCompression))
 	return &Server{
 		App:      app,
 		WithBSON: true,
