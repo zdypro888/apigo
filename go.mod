@@ -11,14 +11,14 @@ require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/iancoleman/strcase v0.3.0
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
-	github.com/quic-go/quic-go v0.45.0
+	github.com/quic-go/quic-go v0.45.1
 	github.com/tus/tusd v1.13.0
 	github.com/zdypro888/idatabase v0.0.0-20240512064352-5336e2d55157
 	github.com/zdypro888/net v0.0.0-20240513005502-6f8d585a2f81
 	github.com/zdypro888/utils v0.0.0-20230701143214-cb20eea39e0e
 	go.mongodb.org/mongo-driver v1.15.0
-	golang.org/x/crypto v0.24.0
-	golang.org/x/mod v0.18.0
+	golang.org/x/crypto v0.25.0
+	golang.org/x/mod v0.19.0
 )
 
 require (
@@ -38,7 +38,7 @@ require (
 	github.com/goccy/go-json v0.10.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
-	github.com/google/pprof v0.0.0-20240528025155-186aa0362fba // indirect
+	github.com/google/pprof v0.0.0-20240721033354-7089f98c1d14 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.17.8 // indirect
@@ -51,6 +51,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.19.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
 	github.com/quic-go/qpack v0.4.0 // indirect
+	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/satori/go.uuid v1.2.0 // indirect
 	github.com/tealeg/xlsx v1.0.5 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
@@ -66,14 +67,14 @@ require (
 	github.com/zdypro888/idevice v0.0.0-20240512064343-2f8bd0bf7368 // indirect
 	go.uber.org/mock v0.4.0 // indirect
 	golang.org/x/arch v0.8.0 // indirect
-	golang.org/x/exp v0.0.0-20240604190554-fc45aab8b7f8 // indirect
-	golang.org/x/net v0.26.0 // indirect
+	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
+	golang.org/x/net v0.27.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/sys v0.21.0 // indirect
+	golang.org/x/sys v0.22.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
-	golang.org/x/tools v0.22.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240604185151-ef581f913117 // indirect
-	google.golang.org/grpc v1.64.0 // indirect
-	google.golang.org/protobuf v1.34.1 // indirect
+	golang.org/x/tools v0.23.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240711142825-46eb208f015d // indirect
+	google.golang.org/grpc v1.65.0 // indirect
+	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
