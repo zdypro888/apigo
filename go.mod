@@ -13,9 +13,9 @@ require (
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/quic-go/quic-go v0.45.1
 	github.com/tus/tusd v1.13.0
-	github.com/zdypro888/idatabase v0.0.0-20240623061333-ce962847e91e
-	github.com/zdypro888/net v0.0.0-20240513005502-6f8d585a2f81
-	github.com/zdypro888/utils v0.0.0-20240729143457-f0e12bf3e0ac
+	github.com/zdypro888/idatabase v0.0.0-20240730180735-ef4092fc360c
+	github.com/zdypro888/net v0.0.0-20240731075422-7939c59933e0
+	github.com/zdypro888/utils v0.0.0-20240730180741-838fa3b5198b
 	go.mongodb.org/mongo-driver v1.16.0
 	golang.org/x/crypto v0.25.0
 	golang.org/x/mod v0.19.0
@@ -59,11 +59,11 @@ require (
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
-	github.com/zdypro888/appleid v0.0.0-20240728155227-eb1aac5f834c // indirect
+	github.com/zdypro888/appleid v0.0.0-20240730180726-4c6bf1da4d1e // indirect
 	github.com/zdypro888/go-plist v0.0.0-20230707093721-f4a9d66c85fb // indirect
-	github.com/zdypro888/icloud v0.0.0-20240623061331-22837d903140 // indirect
+	github.com/zdypro888/icloud v0.0.0-20240730180732-74d6caecd0ec // indirect
 	github.com/zdypro888/icrypto v0.0.0-20230701143023-6dc34fa947aa // indirect
-	github.com/zdypro888/idevice v0.0.0-20240728155216-aac84b44862a // indirect
+	github.com/zdypro888/idevice v0.0.0-20240730180738-abca492ff365 // indirect
 	go.uber.org/mock v0.4.0 // indirect
 	golang.org/x/arch v0.8.0 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
