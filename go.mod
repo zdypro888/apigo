@@ -13,7 +13,7 @@ require (
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/quic-go/quic-go v0.45.1
 	github.com/tus/tusd v1.13.0
-	github.com/zdypro888/idatabase v0.0.0-20240731091730-3b49b48758de
+	github.com/zdypro888/idatabase v0.0.0-20240731092109-89c459180457
 	github.com/zdypro888/net v0.0.0-20240731075422-7939c59933e0
 	github.com/zdypro888/utils v0.0.0-20240730180741-838fa3b5198b
 	go.mongodb.org/mongo-driver v1.16.0
@@ -61,7 +61,7 @@ require (
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	github.com/zdypro888/appleid v0.0.0-20240731091722-2bc3edeb977e // indirect
 	github.com/zdypro888/go-plist v0.0.0-20230707093721-f4a9d66c85fb // indirect
-	github.com/zdypro888/icloud v0.0.0-20240731091728-1e3a75d9092a // indirect
+	github.com/zdypro888/icloud v0.0.0-20240731092120-810fda862d7e // indirect
 	github.com/zdypro888/icrypto v0.0.0-20230701143023-6dc34fa947aa // indirect
 	github.com/zdypro888/idevice v0.0.0-20240731091338-601d49276e77 // indirect
 	go.uber.org/mock v0.4.0 // indirect
