@@ -13,9 +13,9 @@ require (
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/quic-go/quic-go v0.45.1
 	github.com/tus/tusd v1.13.0
-	github.com/zdypro888/idatabase v0.0.0-20240731092109-89c459180457
+	github.com/zdypro888/idatabase v0.0.0-20240731092740-64d4c5d9acb0
 	github.com/zdypro888/net v0.0.0-20240731075422-7939c59933e0
-	github.com/zdypro888/utils v0.0.0-20240730180741-838fa3b5198b
+	github.com/zdypro888/utils v0.0.0-20240731164115-e7aaa690408e
 	go.mongodb.org/mongo-driver v1.16.0
 	golang.org/x/crypto v0.25.0
 	golang.org/x/mod v0.19.0
