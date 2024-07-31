@@ -1243,8 +1243,8 @@ github.com/zdypro888/icloud v0.0.0-20240731170536-a00ba7bd32ef h1:imb8cOCj6nLiBV
 github.com/zdypro888/icloud v0.0.0-20240731170536-a00ba7bd32ef/go.mod h1:03QuMTL160IX0j500VIwbX9PSAbo3zJX9o0V0y0ESeo=
 github.com/zdypro888/icrypto v0.0.0-20230701143023-6dc34fa947aa h1:7u4h+QAEvH6ELZLgul/SWmFgifgfhSGaAK9WmjlHz6g=
 github.com/zdypro888/icrypto v0.0.0-20230701143023-6dc34fa947aa/go.mod h1:PiAaDFHmkMYMJn274k5AbrzCH2/WaXw2PgndUYzlmHs=
-github.com/zdypro888/idatabase v0.0.0-20240731170524-6ab2d26c839c h1:HY+AwJwY3IALXSOgza60OGoIL6kohdzUx3BsD7ahP3A=
-github.com/zdypro888/idatabase v0.0.0-20240731170524-6ab2d26c839c/go.mod h1:5+Ckw9IcOjxyuvMUb43bKSMA2fZautP5n2MyDWO5HBo=
+github.com/zdypro888/idatabase v0.0.0-20240731170828-0965de79504e h1:NQsyPIcPRxLv6n7XLQKDlowa5wkWTjXOJIxebjm0wxI=
+github.com/zdypro888/idatabase v0.0.0-20240731170828-0965de79504e/go.mod h1:V+iWqLBPdpIukcPkMPYJdksqD6wepeQf0AqO8ci2qVA=
 github.com/zdypro888/idevice v0.0.0-20240731165730-7b1dcd677c95 h1:eyQdGvOHQygLXsFOBUbQSK3kiZKzdTOvoMsbaw/3NHs=
 github.com/zdypro888/idevice v0.0.0-20240731165730-7b1dcd677c95/go.mod h1:nOhg2hfNURG6jkinzscaq3iTqSPcUI10PX+ipMX+I7s=
 github.com/zdypro888/net v0.0.0-20240731075422-7939c59933e0 h1:H13sf5+GszcTfNYWSGZvzhmBfhikdddjlIJwm1NySYc=
